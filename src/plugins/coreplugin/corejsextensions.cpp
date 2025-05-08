@@ -145,7 +145,7 @@ QString UtilsJsExtension::asciify(const QString &input) const
         if (c.isPrint() && c.unicode() < 128)
             result.append(c);
         else
-            result.append(QString::fromLatin1("u%1").arg(c.unicode(), 4, 16, QChar('0')));
+            result.append(QString::fromLatin1("u%1").arg(static_cast<uint>(c.unicode()), 4, 16, QChar('0')));
     }
     return result;
 }

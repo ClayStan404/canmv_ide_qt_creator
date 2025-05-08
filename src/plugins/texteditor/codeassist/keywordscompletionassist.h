@@ -11,6 +11,8 @@
 
 #include "texteditor/texteditorconstants.h"
 
+#include <QRegularExpression>
+
 namespace TextEditor {
 
 class AssistInterface;

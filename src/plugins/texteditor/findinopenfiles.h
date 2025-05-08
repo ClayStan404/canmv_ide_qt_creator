@@ -5,6 +5,8 @@
 
 #include "basefilefind.h"
 
+#include <QPointer>
+
 namespace TextEditor {
 namespace Internal {
 

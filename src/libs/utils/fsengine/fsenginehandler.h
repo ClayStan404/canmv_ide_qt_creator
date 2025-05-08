@@ -4,13 +4,14 @@
 #pragma once
 
 #include <QtCore/private/qabstractfileengine_p.h>
+#include <memory>
 
 namespace Utils::Internal {
 
 class FSEngineHandler : public QAbstractFileEngineHandler
 {
 public:
-    QAbstractFileEngine *create(const QString &fileName) const override;
+    std::unique_ptr<QAbstractFileEngine> create(const QString &fileName) const override;
 };
 
 } // Utils::Internal

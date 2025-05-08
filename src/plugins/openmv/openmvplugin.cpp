@@ -335,7 +335,7 @@ bool OpenMVPlugin::initialize(const QStringList &arguments, QString *errorMessag
                    .arg(QString(QStringLiteral("%1").arg(info.vendorIdentifier(), 4, 16, QLatin1Char('0'))).toUpper())
                    .arg(QString(QStringLiteral("%1").arg(info.productIdentifier(), 4, 16, QLatin1Char('0'))).toUpper())
                    .arg(info.serialNumber().toUpper())
-                   .arg(info.systemLocation()) << endl;
+                   .arg(info.systemLocation()) << Qt::endl;
         }
 
         exit(0);

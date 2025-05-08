@@ -8,6 +8,7 @@
 #include <QHostAddress>
 #include <QTcpServer>
 #include <QUrl>
+#include <QDebug>
 
 namespace Utils {
 

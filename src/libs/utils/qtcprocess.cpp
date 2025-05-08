@@ -131,7 +131,7 @@ private:
     }
     static QString formatField(int number, int fieldWidth, const QString &suffix = {})
     {
-        return QString("%1%2").arg(number, fieldWidth - suffix.count()).arg(suffix);
+        return QString("%1%2").arg(number, fieldWidth - suffix.size()).arg(suffix);
     }
 
     static int toMs(quint64 nsesc) // nanoseconds to miliseconds
@@ -1441,9 +1441,9 @@ qint64 QtcProcess::writeRaw(const QByteArray &input)
     QTC_ASSERT(state() == QProcess::Running, return -1);
     QTC_ASSERT(QThread::currentThread() == thread(), return -1);
     qint64 result = -1;
-    QMetaObject::invokeMethod(d->m_process.get(), [this, input] {
-        d->m_process->write(input);
-    }, d->connectionType(), &result);
+    QMetaObject::invokeMethod(d->m_process.get(), [this, input]() -> qint64 {
+        return d->m_process->write(input);
+    }, d->connectionType(), Q_RETURN_ARG(qint64, result));
     return result;
 }
 

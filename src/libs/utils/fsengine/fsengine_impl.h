@@ -5,8 +5,13 @@
 
 #include "../filepath.h"
 
+#include <QFile>
+#include <QFileDevice>
 #include <QtCore/private/qabstractfileengine_p.h>
 
+#include <memory>
+#include <QDateTime>
+#include <QDirListing>
 #include <QTemporaryFile>
 
 namespace Utils {
@@ -22,8 +27,9 @@ public:
 #if QT_VERSION >= QT_VERSION_CHECK(6, 3, 0)
     bool open(QIODeviceBase::OpenMode openMode,
               std::optional<QFile::Permissions> permissions = std::nullopt) override;
-    bool mkdir(const QString &dirName, bool createParentDirectories,
-              std::optional<QFile::Permissions> permissions = std::nullopt) const override;
+    bool mkdir(const QString &dirName,
+               bool createParentDirectories,
+               std::optional<QFile::Permissions> permissions = std::nullopt) const override;
 #else
     bool open(QIODevice::OpenMode openMode) override;
     bool mkdir(const QString &dirName, bool createParentDirectories) const override;
@@ -51,13 +57,15 @@ public:
     QString fileName(FileName file) const override;
     uint ownerId(FileOwner) const override;
     QString owner(FileOwner) const override;
-    bool setFileTime(const QDateTime &newDate, FileTime time) override;
-    QDateTime fileTime(FileTime time) const override;
+    bool setFileTime(const QDateTime &newDate, QFileDevice::FileTime time) override;
+    QDateTime fileTime(QFileDevice::FileTime time) const override;
     void setFileName(const QString &file) override;
     int handle() const override;
     bool cloneTo(QAbstractFileEngine *target) override;
-    Iterator *beginEntryList(QDir::Filters filters, const QStringList &filterNames) override;
-    Iterator *endEntryList() override;
+    IteratorUniquePtr beginEntryList(const QString &path,
+                                     QDirListing::IteratorFlags flags,
+                                     const QStringList &filterNames) override;
+    IteratorUniquePtr endEntryList() override;
     qint64 read(char *data, qint64 maxlen) override;
     qint64 readLine(char *data, qint64 maxlen) override;
     qint64 write(const char *data, qint64 len) override;

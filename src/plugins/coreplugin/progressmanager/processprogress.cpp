@@ -10,6 +10,7 @@
 #include <utils/qtcprocess.h>
 
 #include <QFutureWatcher>
+#include <QPointer>
 
 using namespace Utils;
 

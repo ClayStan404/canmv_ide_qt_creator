@@ -6,6 +6,7 @@
 #include "fileiteratordevicesappender.h"
 
 #include <QtCore/private/qfsfileengine_p.h>
+#include <memory>
 
 namespace Utils {
 namespace Internal {
@@ -16,11 +17,10 @@ public:
     using QFSFileEngine::QFSFileEngine;
 
 public:
-    Iterator *beginEntryList(QDir::Filters filters, const QStringList &filterNames) override
+    IteratorUniquePtr beginEntryList(const QString &path, QDirListing::IteratorFlags flags, const QStringList &filterNames) override
     {
-        std::unique_ptr<QAbstractFileEngineIterator> baseIterator(
-            QFSFileEngine::beginEntryList(filters, filterNames));
-        return new FileIteratorWrapper(std::move(baseIterator), filters, filterNames);
+        IteratorUniquePtr baseIterator = QFSFileEngine::beginEntryList(path, flags, filterNames);
+        return std::make_unique<FileIteratorWrapper>(path, flags, filterNames, std::move(baseIterator));
     }
 };
 

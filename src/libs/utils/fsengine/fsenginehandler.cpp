@@ -10,10 +10,11 @@
 #include "fsengine.h"
 
 #include "../algorithm.h"
+#include <memory>
 
 namespace Utils::Internal {
 
-QAbstractFileEngine *FSEngineHandler::create(const QString &fileName) const
+std::unique_ptr<QAbstractFileEngine> FSEngineHandler::create(const QString &fileName) const
 {
     if (fileName.startsWith(':'))
         return nullptr;
@@ -29,7 +30,7 @@ QAbstractFileEngine *FSEngineHandler::create(const QString &fileName) const
                   return rootFilePath.pathAppended(scheme);
               });
 
-        return new FixedListFSEngine(rootFilePath, paths);
+        return std::unique_ptr<QAbstractFileEngine>(new FixedListFSEngine(rootFilePath, paths));
     }
 
     if (fixedFileName.startsWith(rootPath)) {
@@ -41,17 +42,17 @@ QAbstractFileEngine *FSEngineHandler::create(const QString &fileName) const
                                                                     return root.scheme() == scheme;
                                                                 });
 
-                return new FixedListFSEngine(rootFilePath.pathAppended(scheme), filteredRoots);
+                return std::unique_ptr<QAbstractFileEngine>(new FixedListFSEngine(rootFilePath.pathAppended(scheme), filteredRoots));
             }
         }
 
         FilePath filePath = FilePath::fromString(fixedFileName);
         if (filePath.needsDevice())
-            return new FSEngineImpl(filePath);
+            return std::unique_ptr<QAbstractFileEngine>(new FSEngineImpl(filePath));
     }
 
     if (fixedFileName.compare(QDir::rootPath(), Qt::CaseInsensitive) == 0)
-        return new RootInjectFSEngine(fixedFileName);
+        return std::unique_ptr<QAbstractFileEngine>(new RootInjectFSEngine(fixedFileName));
 
     return nullptr;
 }

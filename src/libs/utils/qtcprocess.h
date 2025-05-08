@@ -10,6 +10,7 @@
 #include "tasktree.h"
 
 #include <QProcess>
+#include <QEventLoop>
 
 QT_BEGIN_NAMESPACE
 class QDebug;

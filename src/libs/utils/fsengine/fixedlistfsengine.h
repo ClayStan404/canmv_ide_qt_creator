@@ -61,9 +61,9 @@ public:
 
         return QAbstractFileEngine::fileName(file);
     }
-    Iterator *beginEntryList(QDir::Filters /*filters*/, const QStringList & /*filterNames*/) override
+    IteratorUniquePtr beginEntryList(QDirListing::IteratorFlags flags, const QStringList & filterNames)
     {
-        return new DirIterator(m_children);
+        return std::make_unique<DirIterator>(m_filePath.toString(), flags, filterNames, m_children);
     }
 };
 

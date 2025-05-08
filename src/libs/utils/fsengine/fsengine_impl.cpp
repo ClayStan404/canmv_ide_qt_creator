@@ -10,8 +10,9 @@
 #include "../filepath.h"
 #include "../qtcassert.h"
 
-#include <QIODevice>
 #include <QDateTime>
+#include <QFile>
+#include <QIODevice>
 
 namespace Utils {
 
@@ -19,7 +20,8 @@ namespace Internal {
 
 FilePathInfoCache g_filePathInfoCache;
 
-FilePathInfoCache::CachedData createCacheData(const FilePath &filePath) {
+FilePathInfoCache::CachedData createCacheData(const FilePath &filePath)
+{
     FilePathInfoCache::CachedData data;
     data.filePathInfo = filePath.filePathInfo();
     data.timeout = QDateTime::currentDateTime().addSecs(60);
@@ -163,7 +165,8 @@ bool FSEngineImpl::link(const QString &newName)
 }
 
 #if QT_VERSION >= QT_VERSION_CHECK(6, 3, 0)
-bool FSEngineImpl::mkdir(const QString &dirName, bool createParentDirectories,
+bool FSEngineImpl::mkdir(const QString &dirName,
+                         bool createParentDirectories,
                          std::optional<QFile::Permissions>) const
 #else
 bool FSEngineImpl::mkdir(const QString &dirName, bool createParentDirectories) const
@@ -251,43 +254,51 @@ QString FSEngineImpl::fileName(FileName file) const
         return m_filePath.canonicalPath().parentDir().toFSPathString();
         break;
     default:
-    // case QAbstractFileEngine::LinkName:
-    // case QAbstractFileEngine::BundleName:
-    // case QAbstractFileEngine::JunctionName:
         return {};
-        break;
-
     }
-
-    return QAbstractFileEngine::fileName(file);
+    return {};
 }
 
-uint FSEngineImpl::ownerId(FileOwner) const
+uint FSEngineImpl::ownerId(FileOwner /*owner*/) const
 {
-    return 1;
+    // TODO?
+    return -2; // invalid uid/gid
 }
 
-QString FSEngineImpl::owner(FileOwner) const
+QString FSEngineImpl::owner(FileOwner /*owner*/) const
 {
-    return "<unknown>";
+    // TODO?
+    return QString();
 }
 
-bool FSEngineImpl::setFileTime(const QDateTime &newDate, FileTime time)
+bool FSEngineImpl::setFileTime(const QDateTime &newDate, QFileDevice::FileTime time)
 {
     Q_UNUSED(newDate)
     Q_UNUSED(time)
+    // Actual implementation might be needed later
     return false;
 }
 
-QDateTime FSEngineImpl::fileTime(FileTime time) const
+QDateTime FSEngineImpl::fileTime(QFileDevice::FileTime time) const
 {
-    Q_UNUSED(time)
-    return g_filePathInfoCache.cached(m_filePath, createCacheData).filePathInfo.lastModified;
+    const FilePathInfo fileInfo
+        = g_filePathInfoCache.cached(m_filePath, createCacheData).filePathInfo;
+
+    switch (time) {
+    case QFileDevice::FileBirthTime:
+        return {};
+    case QFileDevice::FileMetadataChangeTime:
+        return {};
+    case QFileDevice::FileAccessTime:
+        return {};
+    case QFileDevice::FileModificationTime:
+        return fileInfo.lastModified;
+    }
+    return {};
 }
 
 void FSEngineImpl::setFileName(const QString &file)
 {
-    close();
     m_filePath = FilePath::fromString(file);
 }
 
@@ -296,32 +307,38 @@ int FSEngineImpl::handle() const
     return 0;
 }
 
-bool FSEngineImpl::cloneTo(QAbstractFileEngine *target)
+bool FSEngineImpl::cloneTo(QAbstractFileEngine * /*target*/)
 {
-    return QAbstractFileEngine::cloneTo(target);
+    return false;
 }
 
-QAbstractFileEngine::Iterator *FSEngineImpl::beginEntryList(QDir::Filters filters,
-                                                            const QStringList &filterNames)
+QAbstractFileEngine::IteratorUniquePtr FSEngineImpl::beginEntryList(const QString &path,
+                                                                    QDirListing::IteratorFlags flags,
+                                                                    const QStringList &filterNames)
 {
-    FilePaths paths{m_filePath.pathAppended(".")};
+    Q_UNUSED(path); // Mark path as unused for now
+    FilePaths paths;
     m_filePath.iterateDirectory(
         [&paths](const FilePath &p, const FilePathInfo &fi) {
             paths.append(p);
-            FilePathInfoCache::CachedData *data
-                = new FilePathInfoCache::CachedData{fi,
-                                                    QDateTime::currentDateTime().addSecs(60)};
-            g_filePathInfoCache.cache(p, data);
+            g_filePathInfoCache
+                .cache(p,
+                       new FilePathInfoCache::CachedData{fi,
+                                                         QDateTime::currentDateTime().addSecs(60)});
             return IterationPolicy::Continue;
         },
-        {filterNames, filters});
+        {filterNames, QDir::Filters(flags.toInt())});
 
-    return new DirIterator(std::move(paths));
+    // Pass correct arguments (including path) to DirIterator constructor
+    return std::make_unique<DirIterator>(m_filePath.toString(),
+                                         flags,
+                                         filterNames,
+                                         std::move(paths));
 }
 
-QAbstractFileEngine::Iterator *FSEngineImpl::endEntryList()
+QAbstractFileEngine::IteratorUniquePtr FSEngineImpl::endEntryList()
 {
-    return nullptr;
+    return {}; // Return null unique_ptr
 }
 
 qint64 FSEngineImpl::read(char *data, qint64 maxlen)

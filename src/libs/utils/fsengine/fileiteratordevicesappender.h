@@ -4,120 +4,111 @@
 #pragma once
 
 #include "../filepath.h"
+#include "../algorithm.h"
+#include "fsengine.h"
+#include "diriterator.h"
 
 #include <QtCore/private/qabstractfileengine_p.h>
+#include <memory>
+#include <QDirListing>
 
 namespace Utils {
 namespace Internal {
 
-// Based on http://bloglitb.blogspot.com/2011/12/access-to-private-members-safer.htm
-template<typename Tag, typename Tag::type M>
-struct PrivateAccess
-{
-    friend typename Tag::type get(Tag) { return M; }
-};
-
-struct QAFEITag
-{
-    using type = void (QAbstractFileEngineIterator::*)(const QString &);
-    friend type get(QAFEITag);
-};
-
-template struct PrivateAccess<QAFEITag, &QAbstractFileEngineIterator::setPath>;
-
 class FileIteratorWrapper : public QAbstractFileEngineIterator
 {
     enum class State {
-        NotIteratingRoot,
-        IteratingRoot,
-        BaseIteratorEnd,
+        IteratingBase,
+        IteratingDevices,
         Ended,
     };
 
 public:
-    FileIteratorWrapper(std::unique_ptr<QAbstractFileEngineIterator> &&baseIterator,
-                        QDir::Filters filters,
-                        const QStringList &filterNames)
-        : QAbstractFileEngineIterator(filters, filterNames)
+    FileIteratorWrapper(const QString &path, QDirListing::IteratorFlags filters, const QStringList &filterNames, std::unique_ptr<QAbstractFileEngineIterator> &&baseIterator)
+        : QAbstractFileEngineIterator(path, filters, filterNames)
         , m_baseIterator(std::move(baseIterator))
-    {}
+        , m_deviceIterator(nullptr)
+    {
+        if (path.compare(QDir::rootPath(), Qt::CaseInsensitive) == 0) {
+             m_status = State::IteratingBase;
+             m_rootPath = path;
+        } else {
+             m_status = State::IteratingBase;
+        }
+    }
 
 public:
-    QString next() override
+    bool advance() override
     {
-        if (m_status == State::Ended)
-            return QString();
+        while (true) {
+            switch (m_status) {
+            case State::IteratingBase:
+                if (m_baseIterator && m_baseIterator->advance()) {
+                     m_currentPath = m_baseIterator->currentFilePath();
+                     return true;
+                }
+                if (!m_rootPath.isEmpty()) {
+                    m_status = State::IteratingDevices;
+                    FilePaths devicePaths = Utils::transform(FSEngine::registeredDeviceSchemes(),
+                                                            [this](const QString &scheme) {
+                                                                return FilePath::fromString(m_rootPath).pathAppended(scheme);
+                                                            });
+                    m_deviceIterator = std::make_unique<DirIterator>(m_rootPath, QDirListing::IteratorFlags(), QStringList(), std::move(devicePaths));
+                } else {
+                    m_status = State::Ended;
+                    m_currentPath = QString();
+                    return false;
+                }
+                break;
 
-        setPath();
-        checkStatus();
+            case State::IteratingDevices:
+                if (m_deviceIterator && m_deviceIterator->advance()) {
+                    m_currentPath = m_deviceIterator->currentFilePath();
+                    return true;
+                }
+                m_status = State::Ended;
+                m_currentPath = QString();
+                return false;
 
-        if (m_status == State::BaseIteratorEnd) {
-            m_status = State::Ended;
-            return "__qtc__devices__";
-        }
-
-        return m_baseIterator->next();
-    }
-    bool hasNext() const override
-    {
-        if (m_status == State::Ended)
-            return false;
-
-        setPath();
-        checkStatus();
-
-        if (m_status == State::BaseIteratorEnd)
-            return true;
-
-        return m_baseIterator->hasNext();
-    }
-    QString currentFileName() const override
-    {
-        if (m_status == State::Ended)
-            return FilePath::specialRootPath();
-
-        setPath();
-        checkStatus();
-        return m_baseIterator->currentFileName();
-    }
-    QFileInfo currentFileInfo() const override
-    {
-        if (m_status == State::Ended)
-            return QFileInfo(FilePath::specialRootPath());
-        setPath();
-        checkStatus();
-        return m_baseIterator->currentFileInfo();
-    }
-
-private:
-    void setPath() const
-    {
-        if (!m_hasSetPath) {
-            const QString p = path();
-            if (p.compare(QDir::rootPath(), Qt::CaseInsensitive) == 0)
-                m_status = State::IteratingRoot;
-
-            ((*m_baseIterator).*get(QAFEITag()))(p);
-            m_hasSetPath = true;
-        }
-    }
-
-    void checkStatus() const
-    {
-        if (m_status == State::NotIteratingRoot) {
-            return;
-        }
-        if (m_status == State::IteratingRoot) {
-            if (m_baseIterator->hasNext() == false) {
-                m_status = State::BaseIteratorEnd;
+            case State::Ended:
+            default:
+                 m_currentPath = QString();
+                 return false;
             }
         }
     }
 
+    QString currentFilePath() const override
+    {
+        return m_currentPath;
+    }
+
+    QString currentFileName() const override
+    {
+        if (m_status == State::IteratingBase && m_baseIterator) {
+            return m_baseIterator->currentFileName();
+        } else if (m_status == State::IteratingDevices && m_deviceIterator) {
+            return m_deviceIterator->currentFileName();
+        }
+        return FilePath::fromString(m_currentPath).fileName();
+    }
+
+    QFileInfo currentFileInfo() const override
+    {
+         if (m_status == State::IteratingBase && m_baseIterator) {
+            return m_baseIterator->currentFileInfo();
+        } else if (m_status == State::IteratingDevices && m_deviceIterator) {
+            return m_deviceIterator->currentFileInfo();
+        }
+        return QFileInfo(m_currentPath);
+    }
+
 private:
     std::unique_ptr<QAbstractFileEngineIterator> m_baseIterator;
-    mutable bool m_hasSetPath{false};
-    mutable State m_status{State::NotIteratingRoot};
+    std::unique_ptr<DirIterator> m_deviceIterator;
+    QString m_rootPath;
+    QString m_currentPath;
+    mutable State m_status{State::IteratingBase};
 };
 
 } // namespace Internal
